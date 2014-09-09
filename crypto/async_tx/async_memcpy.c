@@ -64,6 +64,9 @@ async_memcpy(struct page *dest, struct page *src, unsigned int dest_offset,
 		dma_src = dma_map_page(device->dev, src, src_offset, len,
 				       DMA_TO_DEVICE);
 
+		if(&submit->depend_tx)
+			async_tx_quiesce(&submit->depend_tx);
+
 		tx = device->device_prep_dma_memcpy(chan, dma_dest, dma_src,
 						    len, dma_prep_flags);
 	}
@@ -71,6 +74,7 @@ async_memcpy(struct page *dest, struct page *src, unsigned int dest_offset,
 	if (tx) {
 		pr_debug("%s: (async) len: %zu\n", __func__, len);
 		async_tx_submit(chan, tx, submit);
+
 	} else {
 		void *dest_buf, *src_buf;
 		pr_debug("%s: (sync) len: %zu\n", __func__, len);

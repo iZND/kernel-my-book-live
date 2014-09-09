@@ -49,6 +49,7 @@ do_async_xor(struct dma_chan *chan, struct page *dest, struct page **src_list,
 
 	/* map the dest bidrectional in case it is re-used as a source */
 	dma_dest = dma_map_page(dma->dev, dest, offset, len, DMA_BIDIRECTIONAL);
+
 	for (i = 0; i < src_cnt; i++) {
 		/* only map the dest once */
 		if (!src_list[i])
@@ -84,6 +85,7 @@ do_async_xor(struct dma_chan *chan, struct page *dest, struct page **src_list,
 			dma_flags |= DMA_PREP_INTERRUPT;
 		if (submit->flags & ASYNC_TX_FENCE)
 			dma_flags |= DMA_PREP_FENCE;
+
 		/* Since we have clobbered the src_list we are committed
 		 * to doing this asynchronously.  Drivers force forward progress
 		 * in case they can not provide a descriptor
@@ -104,6 +106,7 @@ do_async_xor(struct dma_chan *chan, struct page *dest, struct page **src_list,
 		}
 
 		async_tx_submit(chan, tx, submit);
+
 		submit->depend_tx = tx;
 
 		if (src_cnt > xor_src_cnt) {

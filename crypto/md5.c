@@ -220,11 +220,28 @@ static int md5_final(struct shash_desc *desc, u8 *out)
 	return 0;
 }
 
+static int md5_partial(struct shash_desc *desc, u8 *data)
+{
+	struct md5_ctx *mctx = shash_desc_ctx(desc);
+	int i;
+
+	for (i = 0; i < MD5_HASH_WORDS; i++) {
+		*data++ = mctx->hash[i] & 0xFF;
+		*data++ = (mctx->hash[i] >> 8) & 0xFF;
+		*data++ = (mctx->hash[i] >> 16) & 0xFF;
+		*data++ = (mctx->hash[i] >> 24) & 0xFF;
+	}
+
+	return 0;
+}
+
 static struct shash_alg alg = {
 	.digestsize	=	MD5_DIGEST_SIZE,
 	.init		=	md5_init,
 	.update		=	md5_update,
 	.final		=	md5_final,
+	.partial 	= 	md5_partial,
+	.partialsize	=	MD5_DIGEST_SIZE,
 	.descsize	=	sizeof(struct md5_ctx),
 	.base		=	{
 		.cra_name	=	"md5",

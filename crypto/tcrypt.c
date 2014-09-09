@@ -883,7 +883,15 @@ static int do_test(int m)
 
 	case 399:
 		break;
-
+	case 400:
+		tcrypt_test("f8(kasumi)");
+		break;
+	case 401:
+		tcrypt_test("kasumi");
+		break;
+	case 402:
+		tcrypt_test("f9(kasumi)");
+		break;
 	case 1000:
 		test_available();
 		break;
