@@ -92,6 +92,17 @@ config ARCHES
 	help
 	  This option enables support for the AMCC Dual PPC460GT evaluation board.
 
+config APOLLO3G
+	bool "Apollo3G"
+	depends on 44x
+	default n
+	select PPC44x_SIMPLE
+	select APM82181
+	select PPC4xx_PCI_EXPRESS
+	select IBM_NEW_EMAC_RGMII
+	help
+          This option enables support for the WDC Apollo3G NAS.
+
 config CANYONLANDS
 	bool "Canyonlands"
 	depends on 44x
@@ -209,6 +220,19 @@ config PPC4xx_GPIO
 	help
 	  Enable gpiolib support for ppc440 based boards
 
+config PPC4xx_OCM
+	bool "PPC4xx On Chip Memory (OCM) support"
+	depends on 4xx
+	select PPC_LIB_RHEAP
+	help
+	  Enable OCM support for PowerPC 4xx platforms with on chip memory.
+
+config PPC4xx_CPM
+	bool "PPC4xx Clock Power Management (CPM) support"
+	depends on 4xx
+	help
+	  Enable CPM support for PowerPC 4xx platforms.
+
 # 44x specific CPU modules, selected based on the board above.
 config 440EP
 	bool
@@ -260,6 +284,12 @@ config 460SX
 	select IBM_NEW_EMAC_EMAC4
 	select IBM_NEW_EMAC_RGMII
 	select IBM_NEW_EMAC_ZMII
+	select IBM_NEW_EMAC_TAH
+
+config APM82181
+	bool
+	select PPC_FPU
+	select IBM_NEW_EMAC_EMAC4
 	select IBM_NEW_EMAC_TAH
 
 # 44x errata/workaround config symbols, selected by the CPU models above

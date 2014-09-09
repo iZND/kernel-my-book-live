@@ -132,6 +132,14 @@ static inline void dma_direct_sync_single_range(struct device *dev,
 {
 	__dma_sync(bus_to_virt(dma_handle+offset), size, direction);
 }
+
+static inline void dma_direct_sync_single(struct device *dev,
+              dma_addr_t dma_handle, size_t size,
+              enum dma_data_direction direction)
+{
+      __dma_sync(bus_to_virt(dma_handle), size, direction);
+}
+
 #endif
 
 struct dma_map_ops dma_direct_ops = {
@@ -143,6 +151,8 @@ struct dma_map_ops dma_direct_ops = {
 	.map_page	= dma_direct_map_page,
 	.unmap_page	= dma_direct_unmap_page,
 #ifdef CONFIG_NOT_COHERENT_CACHE
+	.sync_single_for_cpu            = dma_direct_sync_single,
+	.sync_single_for_device         = dma_direct_sync_single,
 	.sync_single_range_for_cpu 	= dma_direct_sync_single_range,
 	.sync_single_range_for_device 	= dma_direct_sync_single_range,
 	.sync_sg_for_cpu 		= dma_direct_sync_sg,

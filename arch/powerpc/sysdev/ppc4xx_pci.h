@@ -383,6 +383,7 @@
 /*
  * Config space register offsets
  */
+#define PECFG_ECDEVCTL          0x60
 #define PECFG_ECRTCTL		0x074
 
 #define PECFG_BAR0LMPA		0x210
@@ -390,6 +391,7 @@
 #define PECFG_BAR1MPA		0x218
 #define PECFG_BAR2LMPA		0x220
 #define PECFG_BAR2HMPA		0x224
+#define PECFG_ECDEVCAPPA	0x25C
 
 #define PECFG_PIMEN		0x33c
 #define PECFG_PIM0LAL		0x340

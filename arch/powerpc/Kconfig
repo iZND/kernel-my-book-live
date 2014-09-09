@@ -216,7 +216,7 @@ config ARCH_HIBERNATION_POSSIBLE
 
 config ARCH_SUSPEND_POSSIBLE
 	def_bool y
-	depends on ADB_PMU || PPC_EFIKA || PPC_LITE5200 || PPC_83xx
+	depends on ADB_PMU || PPC_EFIKA || PPC_LITE5200 || PPC_83xx || PPC4xx_CPM
 
 config PPC_DCR_NATIVE
 	bool
@@ -243,6 +243,8 @@ config ARCH_SUPPORTS_DEBUG_PAGEALLOC
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
+
+source "kernel/Kconfig.exit"
 
 source "arch/powerpc/sysdev/Kconfig"
 source "arch/powerpc/platforms/Kconfig"
@@ -537,6 +539,16 @@ config PPC_SUBPAGE_PROT
 	  to set access permissions (read/write, readonly, or no access)
 	  on the 4k subpages of each 64k page.
 
+config FAST_MEMSET
+	bool "Fast Memset"
+	depends on 4xx
+	---help---
+	  Fast memset can be enabled to enhance memset performance.
+	  But this version of memset will work only with cached memory. Since it
+	  modifies the global memset, which can be called for uncached memory too,
+	  it is best to enable this only on specific scenarios. Be really careful
+	  if you need to enabled Fast Memset
+
 config SCHED_SMT
 	bool "SMT (Hyperthreading) scheduler support"
 	depends on PPC64 && SMP
@@ -579,13 +591,14 @@ config EXTRA_TARGETS
 
 	  If unsure, leave blank
 
-if !44x || BROKEN
+if !BROKEN
 config ARCH_WANTS_FREEZER_CONTROL
 	def_bool y
-	depends on ADB_PMU
+	depends on ADB_PMU || PPC4xx_CPM
 
 source kernel/power/Kconfig
 endif
+
 
 config SECCOMP
 	bool "Enable seccomp to safely compute untrusted bytecode"
