@@ -12,6 +12,7 @@
 #ifndef _CRYPTO_ALGAPI_H
 #define _CRYPTO_ALGAPI_H
 
+#include <crypto/hash.h>
 #include <linux/crypto.h>
 #include <linux/list.h>
 #include <linux/kernel.h>
@@ -343,6 +344,8 @@ static inline int crypto_requires_sync(u32 type, u32 mask)
 {
 	return (type ^ CRYPTO_ALG_ASYNC) & mask & CRYPTO_ALG_ASYNC;
 }
+
+
 
 #endif	/* _CRYPTO_ALGAPI_H */
 

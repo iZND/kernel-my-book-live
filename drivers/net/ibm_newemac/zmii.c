@@ -225,7 +225,7 @@ void *zmii_dump_regs(struct of_device *ofdev, void *buf)
 			 * zmii ? if yes, then we'll add a cell_index
 			 * like we do for emac
 			 */
-	memcpy_fromio(regs, dev->base, sizeof(struct zmii_regs));
+	memcpy(regs, dev->base, sizeof(struct zmii_regs));
 	return regs + 1;
 }
 

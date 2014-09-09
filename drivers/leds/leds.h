@@ -17,6 +17,25 @@
 #include <linux/rwsem.h>
 #include <linux/leds.h>
 
+static inline void led_set_color(struct led_classdev *led_cdev,
+					enum led_brightness value)
+{
+	led_cdev->color = value;
+	if (!(led_cdev->flags & LED_SUSPENDED))
+		led_cdev->color_set(led_cdev, value);
+}
+
+static inline int led_get_color(struct led_classdev *led_cdev)
+{
+	return led_cdev->color;
+}
+static inline void led_set_blink(struct led_classdev *led_cdev,
+					enum led_brightness value)
+{
+	led_cdev->blink = value;
+        led_cdev->blink_set_3g(led_cdev, value);
+}
+
 static inline void led_set_brightness(struct led_classdev *led_cdev,
 					enum led_brightness value)
 {

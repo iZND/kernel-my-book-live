@@ -13,7 +13,11 @@ struct ah_data
 	int			icv_full_len;
 	int			icv_trunc_len;
 
-	struct crypto_hash	*tfm;
+	union {
+		struct crypto_hash	*tfm;
+		struct crypto_ahash	*atfm;
+		struct crypto_aead	*aeadtfm;
+	} utfm;
 };
 
 static inline int ah_mac_digest(struct ah_data *ahp, struct sk_buff *skb,
@@ -22,7 +26,7 @@ static inline int ah_mac_digest(struct ah_data *ahp, struct sk_buff *skb,
 	struct hash_desc desc;
 	int err;
 
-	desc.tfm = ahp->tfm;
+	desc.tfm = ahp->utfm.tfm;
 	desc.flags = 0;
 
 	memset(auth_data, 0, ahp->icv_trunc_len);

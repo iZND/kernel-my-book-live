@@ -3,7 +3,7 @@
 #
 
 # Each configuration option enables a list of files.
-
+obj-y					+= a3g_button.o
 obj-$(CONFIG_INPUT_APANEL)		+= apanel.o
 obj-$(CONFIG_INPUT_ATI_REMOTE)		+= ati_remote.o
 obj-$(CONFIG_INPUT_ATI_REMOTE2)		+= ati_remote2.o

@@ -1,0 +1,6 @@
+config EXIT_PROFILE
+	bool "Add profiling features to process exit"
+	default n
+	depends on PROFILING
+	help
+	  Capture information to the system log during process exit.

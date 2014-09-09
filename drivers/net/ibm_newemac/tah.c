@@ -49,6 +49,7 @@ void tah_reset(struct of_device *ofdev)
 	struct tah_instance *dev = dev_get_drvdata(&ofdev->dev);
 	struct tah_regs __iomem *p = dev->base;
 	int n;
+	u32 ss_arr[] = TAH_SS_DEFAULT;
 
 	/* Reset TAH */
 	out_be32(&p->mr, TAH_MR_SR);
@@ -61,8 +62,18 @@ void tah_reset(struct of_device *ofdev)
 
 	/* 10KB TAH TX FIFO accomodates the max MTU of 9000 */
 	out_be32(&p->mr,
-		 TAH_MR_CVR | TAH_MR_ST_768 | TAH_MR_TFS_10KB | TAH_MR_DTFP |
+		 TAH_MR_CVR | TAH_MR_ST_256 | TAH_MR_TFS_10KB | TAH_MR_DTFP |
 		 TAH_MR_DIG);
+	
+	/* Re-initialize SSRx values */
+	for (n=0; n < TAH_NO_SSR; n++) {
+		dev->ss_order[n] = n;
+	}
+
+        for (n=0; n < TAH_NO_SSR; n++) {
+                tah_set_ssr(ofdev, n, ss_arr[n]);
+        }
+
 }
 
 int tah_get_regs_len(struct of_device *ofdev)
@@ -82,8 +93,76 @@ void *tah_dump_regs(struct of_device *ofdev, void *buf)
 			 * zmii ? if yes, then we'll add a cell_index
 			 * like we do for emac
 			 */
-	memcpy_fromio(regs, dev->base, sizeof(struct tah_regs));
+	memcpy(regs, dev->base, sizeof(struct tah_regs));
 	return regs + 1;
+}
+
+void tah_set_ssr(struct of_device *ofdev, int index, int seg_size)
+{
+        struct tah_instance *dev = dev_get_drvdata(&ofdev->dev);
+        struct tah_regs __iomem *p = dev->base;
+	u32 ssr_tmp[TAH_NO_SSR];
+	int i = 0;
+	int j = 0;
+	u32 tmp_val;
+
+        if ((index < 0) || (index > 5)) return;
+	mutex_lock(&dev->lock);
+        /* TAH segment size reg defines the number of half words */
+        out_be32(&p->ssr0 + index, SS_2_TAH_SSR(seg_size >> 1));
+	dev->ss_array[index] = seg_size & 0x3ffe;
+
+	/* 
+	 * Sort the TAH_SSRx values and store the index in
+	 * ss_order array in high-to-low order
+	 */
+	for (i=0; i < TAH_NO_SSR; i++) {
+		ssr_tmp[i] = dev->ss_array[i];	
+		dev->ss_order[i] = i;
+	}
+	/* Simple bubble short */
+	for (i =0; i < (TAH_NO_SSR-1); i++)
+		for (j = i+1; j < TAH_NO_SSR; j++) {
+		if (ssr_tmp[i] < ssr_tmp[j]) {
+			/* Swap ssr_tmp[] values */
+			tmp_val = ssr_tmp[i];
+			ssr_tmp[i] = ssr_tmp[j];
+			ssr_tmp[j] = tmp_val;
+			/* Swap order array values */
+			tmp_val = dev->ss_order[i];
+			dev->ss_order[i] = dev->ss_order[j];
+			dev->ss_order[j] = tmp_val;		
+		}
+	}
+#if 0
+        printk(KERN_DEBUG "%s: Setting TAH_SSR%d[SS] to %d\n", 
+                ofdev->node->full_name, index, 
+                TAH_SSR_2_SS(in_be32(&p->ssr0+index)));
+	printk("SSRx array: ");
+	for (i = 0; i < TAH_NO_SSR; i++) 
+                printk("%d ", ssr_tmp[i]);
+        printk("\n");
+
+	printk("SSRx order: ");
+	for (i = 0; i < TAH_NO_SSR; i++) 
+		printk("%d ", dev->ss_order[i]);
+	printk("\n");
+#endif
+	mutex_unlock(&dev->lock);
+}
+
+u32 tah_get_ssr(struct of_device *ofdev, int index)
+{
+        struct tah_instance *dev = dev_get_drvdata(&ofdev->dev);
+        struct tah_regs __iomem *p = dev->base;
+	u32 ret = 0;
+
+        if ((index < 0) || (index > 5)) return 0;
+        mutex_lock(&dev->lock);
+	ret = (in_be32(&p->ssr0 + index));
+	mutex_unlock(&dev->lock);
+
+	return ret;
 }
 
 static int __devinit tah_probe(struct of_device *ofdev,

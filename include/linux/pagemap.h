@@ -213,6 +213,11 @@ static inline struct page *page_cache_alloc(struct address_space *x)
 	return __page_cache_alloc(mapping_gfp_mask(x));
 }
 
+static inline struct page *page_cache_alloc_pages(struct address_space *x, int order)
+{
+	return alloc_pages(mapping_gfp_mask(x), order);
+}
+
 static inline struct page *page_cache_alloc_cold(struct address_space *x)
 {
 	return __page_cache_alloc(mapping_gfp_mask(x)|__GFP_COLD);

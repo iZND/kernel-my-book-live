@@ -916,6 +916,13 @@ struct net_device
 	/* max exchange id for FCoE LRO by ddp */
 	unsigned int		fcoe_ddp_xid;
 #endif
+
+#ifdef CONFIG_NET_MACSEC
+	void			*macsec_priv;
+	int			(*macsec_output_hw) (struct sk_buff *skb,
+	struct net_device *dev);
+	int			(*macsec_input_hw) (struct sk_buff *skb);
+#endif
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
@@ -991,6 +998,21 @@ static inline bool netdev_uses_trailer_tags(struct net_device *dev)
 static inline void *netdev_priv(const struct net_device *dev)
 {
 	return (char *)dev + ALIGN(sizeof(struct net_device), NETDEV_ALIGN);
+}
+
+/**
+ *	macsec_priv - access network device macsec private data
+ *	@dev: network device
+ *
+ * Get network device macsec private data
+ */
+ 
+static inline void *netdev_macsec_priv(const struct net_device *dev)
+{
+#ifdef CONFIG_NET_MACSEC
+	return dev->macsec_priv;
+#endif
+	return NULL;
 }
 
 /* Set the sysfs physical device reference for the network logical device

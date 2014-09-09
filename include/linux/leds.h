@@ -32,11 +32,22 @@ struct led_classdev {
 	int			 brightness;
 	int			 max_brightness;
 	int			 flags;
+#ifdef CONFIG_APOLLO3G
+	int			 color;
+	int			 blink;
+#endif
 
 	/* Lower 16 bits reflect status */
 #define LED_SUSPENDED		(1 << 0)
 	/* Upper 16 bits reflect control information */
 #define LED_CORE_SUSPENDRESUME	(1 << 16)
+
+#ifdef CONFIG_APOLLO3G
+	void (*color_set)(struct led_classdev *led_cdev,
+					  enum led_brightness color);
+	/* Get LED brightness level */
+	enum led_brightness (*color_get)(struct led_classdev *led_cdev);
+#endif
 
 	/* Set LED brightness level */
 	/* Must not sleep, use a workqueue if needed */
@@ -52,6 +63,11 @@ struct led_classdev {
 	int		(*blink_set)(struct led_classdev *led_cdev,
 				     unsigned long *delay_on,
 				     unsigned long *delay_off);
+
+#ifdef CONFIG_APOLLO3G
+	int (*blink_set_3g)(struct led_classdev *led_cdev, int value );
+	int (*blink_get_3g)(struct led_classdev *led_cdev);
+#endif
 
 	struct device		*dev;
 	struct list_head	 node;			/* LED Device list */

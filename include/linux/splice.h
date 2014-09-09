@@ -10,6 +10,8 @@
 
 #include <linux/pipe_fs_i.h>
 
+#define PIPE_MAX_BUFS	64
+#define PIPE_MAX_DMA_BUFS	256
 /*
  * Flags passed in from splice/tee/vmsplice
  */
@@ -56,6 +58,38 @@ struct splice_pipe_desc {
 	const struct pipe_buf_operations *ops;/* ops associated with output pipe */
 	void (*spd_release)(struct splice_pipe_desc *, unsigned int);
 };
+
+struct splice_dma_desc {
+	struct page *page;
+	unsigned int page_offset;
+	unsigned long src_addrs[PIPE_MAX_DMA_BUFS];
+	unsigned long dst_addrs[PIPE_MAX_DMA_BUFS];
+	unsigned int xfr_size[PIPE_MAX_DMA_BUFS];
+	int n_elems;
+};
+
+struct splice_dma_desc_defer {
+	int valid;
+	struct splice_desc sd;
+	struct page *page;
+	struct pipe_inode_info *pipe;
+	void *fsdata;
+	unsigned long f_offset;
+	unsigned long src_addrs[PIPE_MAX_BUFS];
+	unsigned long dst_addrs[PIPE_MAX_BUFS];
+	unsigned int xfr_size[PIPE_MAX_BUFS];
+	unsigned long pipe_addr_map[PIPE_MAX_BUFS];
+	int n_elems;
+	int bufmap_count;
+	int pipe_curbuf;
+	int pipe_nrbufs;
+};
+
+struct splice_pipe_defer {
+	int available;
+	struct pipe_inode_info *pipe;
+};
+	
 
 typedef int (splice_actor)(struct pipe_inode_info *, struct pipe_buffer *,
 			   struct splice_desc *);

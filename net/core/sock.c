@@ -130,6 +130,12 @@
 #include <net/tcp.h>
 #endif
 
+//#define DEBUG_CHECK_SIGNAL_PENDING
+
+#ifdef DEBUG_CHECK_SIGNAL_PENDING
+	#include <linux/signal.h>
+#endif
+
 /*
  * Each address family might have different locking rules, so we have
  * one slock key per address family:
@@ -1537,6 +1543,36 @@ int sk_wait_data(struct sock *sk, long *timeo)
 	prepare_to_wait(sk->sk_sleep, &wait, TASK_INTERRUPTIBLE);
 	set_bit(SOCK_ASYNC_WAITDATA, &sk->sk_socket->flags);
 	rc = sk_wait_event(sk, timeo, !skb_queue_empty(&sk->sk_receive_queue));
+
+#ifdef DEBUG_CHECK_SIGNAL_PENDING
+	if ( signal_pending ( current ) ) 
+	{
+		printk( "%s:%s:%d\n", __FILE__, __FUNCTION__, __LINE__ );
+		
+        if ( _NSIG_WORDS == 1 )
+		{
+			printk( "Signal set0 is 0x%08lx\n", 
+				       current->signal->shared_pending.signal.sig[0] );
+		}
+        else
+		{
+			printk( "Signal set0 is 0x%08lx\n", 
+					   current->signal->shared_pending.signal.sig[0] );
+			printk( "Signal set1 is 0x%08lx\n", 
+				       current->signal->shared_pending.signal.sig[1] );
+			
+//			printk("Signal set0 is 0x%08lx, flags 0x%08lx\n", 
+//				       current->signal->shared_pending.signal.sig[0], 
+//				       ((struct thread_info *)current->stack)->flags );
+//
+//            printk("Signal %d is %s\n", SIGRTMIN+3, 
+//		                 sigismember(&current->signal->shared_pending.signal, 
+//				                     SIGRTMIN+3) ? "present" : "not present" );
+
+		}
+	}
+#endif // DEBUG_CHECK_SIGNAL_PENDING
+
 	clear_bit(SOCK_ASYNC_WAITDATA, &sk->sk_socket->flags);
 	finish_wait(sk->sk_sleep, &wait);
 	return rc;

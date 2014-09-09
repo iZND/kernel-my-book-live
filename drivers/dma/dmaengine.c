@@ -680,6 +680,7 @@ int dma_async_device_register(struct dma_device *device)
 	struct dma_chan* chan;
 	atomic_t *idr_ref;
 
+	printk( "--------------- %s: %i-------------------------\n",__FUNCTION__,__LINE__);
 	if (!device)
 		return -ENODEV;
 
@@ -858,14 +859,10 @@ dma_async_memcpy_buf_to_buf(struct dma_chan *chan, void *dest,
 	dma_addr_t dma_dest, dma_src;
 	dma_cookie_t cookie;
 	int cpu;
-	unsigned long flags;
 
 	dma_src = dma_map_single(dev->dev, src, len, DMA_TO_DEVICE);
 	dma_dest = dma_map_single(dev->dev, dest, len, DMA_FROM_DEVICE);
-	flags = DMA_CTRL_ACK |
-		DMA_COMPL_SRC_UNMAP_SINGLE |
-		DMA_COMPL_DEST_UNMAP_SINGLE;
-	tx = dev->device_prep_dma_memcpy(chan, dma_dest, dma_src, len, flags);
+	tx = dev->device_prep_dma_memcpy(chan, dma_dest, dma_src, len, DMA_CTRL_ACK);
 
 	if (!tx) {
 		dma_unmap_single(dev->dev, dma_src, len, DMA_TO_DEVICE);
@@ -907,12 +904,10 @@ dma_async_memcpy_buf_to_pg(struct dma_chan *chan, struct page *page,
 	dma_addr_t dma_dest, dma_src;
 	dma_cookie_t cookie;
 	int cpu;
-	unsigned long flags;
 
 	dma_src = dma_map_single(dev->dev, kdata, len, DMA_TO_DEVICE);
 	dma_dest = dma_map_page(dev->dev, page, offset, len, DMA_FROM_DEVICE);
-	flags = DMA_CTRL_ACK | DMA_COMPL_SRC_UNMAP_SINGLE;
-	tx = dev->device_prep_dma_memcpy(chan, dma_dest, dma_src, len, flags);
+	tx = dev->device_prep_dma_memcpy(chan, dma_dest, dma_src, len, DMA_CTRL_ACK);
 
 	if (!tx) {
 		dma_unmap_single(dev->dev, dma_src, len, DMA_TO_DEVICE);

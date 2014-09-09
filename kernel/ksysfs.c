@@ -17,6 +17,8 @@
 #include <linux/profile.h>
 #include <linux/sched.h>
 
+#include "exit_profile.h"
+
 #define KERNEL_ATTR_RO(_name) \
 static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
 
@@ -148,6 +150,9 @@ static struct attribute * kernel_attrs[] = {
 	&kexec_loaded_attr.attr,
 	&kexec_crash_loaded_attr.attr,
 	&vmcoreinfo_attr.attr,
+#endif
+#ifdef CONFIG_EXIT_PROFILE
+	&exit_profile_attr.attr,
 #endif
 	NULL
 };

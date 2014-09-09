@@ -22,6 +22,8 @@
 #include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
+static struct kmem_cache *pipe_info_cache __read_mostly;
+
 /*
  * We use a start+len construction, which provides full use of the 
  * allocated memory.
@@ -875,7 +877,7 @@ struct pipe_inode_info * alloc_pipe_info(struct inode *inode)
 {
 	struct pipe_inode_info *pipe;
 
-	pipe = kzalloc(sizeof(struct pipe_inode_info), GFP_KERNEL);
+	pipe = kmem_cache_zalloc(pipe_info_cache, GFP_KERNEL);
 	if (pipe) {
 		init_waitqueue_head(&pipe->wait);
 		pipe->r_counter = pipe->w_counter = 1;
@@ -896,7 +898,8 @@ void __free_pipe_info(struct pipe_inode_info *pipe)
 	}
 	if (pipe->tmp_page)
 		__free_page(pipe->tmp_page);
-	kfree(pipe);
+
+	kmem_cache_free(pipe_info_cache, pipe);
 }
 
 void free_pipe_info(struct inode *inode)
@@ -1145,6 +1148,10 @@ static int __init init_pipe_fs(void)
 			err = PTR_ERR(pipe_mnt);
 			unregister_filesystem(&pipe_fs_type);
 		}
+	}
+	if (!err) {
+		pipe_info_cache = KMEM_CACHE(pipe_inode_info, SLAB_PANIC);
+		printk(KERN_INFO "%s: pipe_inode_cache initialized\n", __FUNCTION__);
 	}
 	return err;
 }

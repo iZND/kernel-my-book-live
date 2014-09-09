@@ -346,10 +346,12 @@ err_flash_remove:
 }
 
 static struct of_device_id of_flash_match[] = {
+#ifndef CONFIG_APOLLO3G
 	{
 		.compatible	= "cfi-flash",
 		.data		= (void *)"cfi_probe",
 	},
+#endif
 	{
 		/* FIXME: JEDEC chips can't be safely and reliably
 		 * probed, although the mtd code gets it right in
@@ -361,6 +363,12 @@ static struct of_device_id of_flash_match[] = {
 		.compatible	= "jedec-flash",
 		.data		= (void *)"jedec_probe",
 	},
+#ifdef CONFIG_APOLLO3G
+	{
+		.compatible	= "cfi-flash",
+		.data		= (void *)"cfi_probe",
+	},
+#endif
 	{
 		.compatible     = "mtd-ram",
 		.data           = (void *)"map_ram",

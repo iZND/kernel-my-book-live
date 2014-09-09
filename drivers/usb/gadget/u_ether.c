@@ -125,10 +125,13 @@ static inline int qlen(struct usb_gadget *gadget)
 #define xprintk(d, level, fmt, args...) \
 	printk(level "%s: " fmt , (d)->net->name , ## args)
 
+#define DEBUG
+#define VERBOSE_DEBUG
+
 #ifdef DEBUG
 #undef DEBUG
 #define DBG(dev, fmt, args...) \
-	xprintk(dev , KERN_DEBUG , fmt , ## args)
+	printk(fmt , ## args)
 #else
 #define DBG(dev, fmt, args...) \
 	do { } while (0)
@@ -249,7 +252,17 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	 * but on at least one, checksumming fails otherwise.  Note:
 	 * RNDIS headers involve variable numbers of LE32 values.
 	 */
+#if defined(CONFIG_USB_GADGET_DWC_OTG)
+	{
+		unsigned int off = 0;
+		off = ((unsigned long) skb->data) % 4;  /* align=4 */
+		if (off != 0)
+		    skb_reserve(skb, 4 - off);
+	}
+#else
 	skb_reserve(skb, NET_IP_ALIGN);
+#endif
+
 
 	req->buf = skb->data;
 	req->length = size;
@@ -573,6 +586,18 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 
 		length = skb->len;
 	}
+
+#if defined(CONFIG_USB_GADGET_DWC_OTG)
+	{
+		unsigned int off = 0;
+		off = ((unsigned long) skb->data) % 4;  /* align=4 */
+		if (off != 0) {
+			memmove(skb->data + (4 - off), skb->data, skb->len);
+			skb_reserve(skb, 4 - off);
+		}
+	}
+#endif
+
 	req->buf = skb->data;
 	req->context = skb;
 	req->complete = tx_complete;

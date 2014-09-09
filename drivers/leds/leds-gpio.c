@@ -18,6 +18,9 @@
 
 #include <asm/gpio.h>
 
+
+#define CONFIG_LEDS_GPIO_PLATFORM
+
 struct gpio_led_data {
 	struct led_classdev cdev;
 	unsigned gpio;
@@ -141,6 +144,7 @@ static int __devinit gpio_led_probe(struct platform_device *pdev)
 	struct gpio_led_data *leds_data;
 	int i, ret = 0;
 
+printk(KERN_INFO ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 1\n");
 	if (!pdata)
 		return -EBUSY;
 

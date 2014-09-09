@@ -269,7 +269,6 @@ struct hash_alg {
 		      unsigned int nbytes, u8 *out);
 	int (*setkey)(struct crypto_hash *tfm, const u8 *key,
 		      unsigned int keylen);
-
 	unsigned int digestsize;
 };
 
@@ -406,6 +405,8 @@ struct hash_tfm {
 	int (*setkey)(struct crypto_hash *tfm, const u8 *key,
 		      unsigned int keylen);
 	unsigned int digestsize;
+	int (*partial)(struct hash_desc *desc, u8 *out);
+	unsigned int partialsize;
 };
 
 struct compress_tfm {
@@ -1197,6 +1198,11 @@ static inline unsigned int crypto_hash_digestsize(struct crypto_hash *tfm)
 	return crypto_hash_crt(tfm)->digestsize;
 }
 
+static inline int crypto_hash_partialsize(struct crypto_hash *tfm)
+{
+	return crypto_hash_crt(tfm)->partialsize;
+}
+
 static inline u32 crypto_hash_get_flags(struct crypto_hash *tfm)
 {
 	return crypto_tfm_get_flags(crypto_hash_tfm(tfm));
@@ -1234,6 +1240,11 @@ static inline int crypto_hash_digest(struct hash_desc *desc,
 				     unsigned int nbytes, u8 *out)
 {
 	return crypto_hash_crt(desc->tfm)->digest(desc, sg, nbytes, out);
+}
+
+static inline int crypto_hash_partial(struct hash_desc *desc, u8 *out)
+{
+	return crypto_hash_crt(desc->tfm)->partial(desc, out);
 }
 
 static inline int crypto_hash_setkey(struct crypto_hash *hash,

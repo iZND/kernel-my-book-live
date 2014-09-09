@@ -11,8 +11,8 @@ dm-mirror-y	+= dm-raid1.o
 dm-log-userspace-y \
 		+= dm-log-userspace-base.o dm-log-userspace-transfer.o
 md-mod-y	+= md.o bitmap.o
-raid456-y	+= raid5.o
-raid6_pq-y	+= raid6algos.o raid6recov.o raid6tables.o \
+raid456-y	+= raid5.o 
+raid6_pq-y      += raid6algos.o raid6recov.o raid6tables.o \
 		   raid6int1.o raid6int2.o raid6int4.o \
 		   raid6int8.o raid6int16.o raid6int32.o \
 		   raid6altivec1.o raid6altivec2.o raid6altivec4.o \

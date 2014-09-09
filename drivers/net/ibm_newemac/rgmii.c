@@ -222,7 +222,7 @@ void *rgmii_dump_regs(struct of_device *ofdev, void *buf)
 			 * rgmii ? if yes, then we'll add a cell_index
 			 * like we do for emac
 			 */
-	memcpy_fromio(regs, dev->base, sizeof(struct rgmii_regs));
+	memcpy(regs, dev->base, sizeof(struct rgmii_regs));
 	return regs + 1;
 }
 

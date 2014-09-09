@@ -38,8 +38,25 @@ struct tah_regs {
 
 
 /* TAH device */
+/* 
+ * Default MTU values for common networks.
+ * Note that the first value may not correct as 
+ * we will use the device's current MTU for SSR0
+ */
+#define TAH_SS_DEFAULT	{ 1500,	\
+			  1400,	\
+			  1280,	\
+			  1006,	\
+			  576,	\
+			  68    }
+#define TAH_NO_SSR	6
 struct tah_instance {
 	struct tah_regs __iomem		*base;
+
+	/* Current setting for TAHx_SSRx */
+	u32 				ss_array[TAH_NO_SSR];
+	/* List of indexes of ordered TAH_x_SSRx values (from high to low)*/
+	u32 				ss_order[TAH_NO_SSR];
 
 	/* Only one EMAC whacks us at a time */
 	struct mutex			lock;
@@ -69,6 +86,9 @@ struct tah_instance {
 #define TAH_MR_TFS_10KB		0x00a00000
 #define TAH_MR_DTFP		0x00100000
 #define TAH_MR_DIG		0x00080000
+#define TAH_SSR_2_SS(val)       (((val) >> 17) & 0x1fff)
+/* s is number of half words */
+#define SS_2_TAH_SSR(s)         (((s) & 0x1fff) << 17) 
 
 #ifdef CONFIG_IBM_NEW_EMAC_TAH
 
@@ -79,6 +99,8 @@ extern void tah_detach(struct of_device *ofdev, int channel);
 extern void tah_reset(struct of_device *ofdev);
 extern int tah_get_regs_len(struct of_device *ofdev);
 extern void *tah_dump_regs(struct of_device *ofdev, void *buf);
+extern void tah_set_ssr(struct of_device *ofdev, int index, int seg_size);
+extern u32 tah_get_ssr(struct of_device *ofdev, int index);
 
 #else
 

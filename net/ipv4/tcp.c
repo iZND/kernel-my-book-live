@@ -610,8 +610,12 @@ ssize_t tcp_splice_read(struct socket *sock, loff_t *ppos,
 	/*
 	 * We can't seek on a socket input
 	 */
-	if (unlikely(*ppos))
+	if (unlikely(ppos)) {
+		printk(KERN_ERR "%s:%s:%d\n"
+				"returning ESPIPE\n", 
+				__FUNCTION__, __FILE__, __LINE__);
 		return -ESPIPE;
+	}
 
 	ret = spliced = 0;
 
@@ -620,35 +624,84 @@ ssize_t tcp_splice_read(struct socket *sock, loff_t *ppos,
 	timeo = sock_rcvtimeo(sk, sock->file->f_flags & O_NONBLOCK);
 	while (tss.len) {
 		ret = __tcp_splice_read(sk, &tss);
-		if (ret < 0)
+		if (ret < 0) {
+			printk(KERN_ERR "%s:%s:%d\n"
+					"breaking err %d\n",
+					__FUNCTION__, __FILE__, __LINE__, ret);
 			break;
+		}
 		else if (!ret) {
-			if (spliced)
+			if (spliced >= len)
 				break;
+			if (flags & SPLICE_F_NONBLOCK) {
+				ret = -EAGAIN;
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking -EAGAIN\n",
+						__FUNCTION__, __FILE__, __LINE__);
+				break;
+			}
 			if (sock_flag(sk, SOCK_DONE))
+			{
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking %d\n",
+						__FUNCTION__, __FILE__, __LINE__, 
+						ret);
 				break;
+			}
 			if (sk->sk_err) {
 				ret = sock_error(sk);
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking err %d\n",
+						__FUNCTION__, __FILE__, __LINE__, 
+						ret);
 				break;
 			}
 			if (sk->sk_shutdown & RCV_SHUTDOWN)
+			{
+
+/*				SH - 04/15/11 - removed print, these were filling up logs in some environments
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking %d\n",
+						__FUNCTION__, __FILE__, __LINE__, 
+						ret);
+*/
 				break;
+			}
 			if (sk->sk_state == TCP_CLOSE) {
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking %d\n",
+						__FUNCTION__, __FILE__, __LINE__, 
+						ret);
 				/*
 				 * This occurs when user tries to read
 				 * from never connected socket.
 				 */
-				if (!sock_flag(sk, SOCK_DONE))
+				if (!sock_flag(sk, SOCK_DONE)) {
+					printk(KERN_ERR "%s:%s:%d\n"
+							"breaking ENOTCONN\n",
+							__FUNCTION__, __FILE__, __LINE__);
 					ret = -ENOTCONN;
+				}
 				break;
 			}
 			if (!timeo) {
 				ret = -EAGAIN;
+				printk(KERN_ERR "%s:%s:%d\n"
+						"breaking EAGAIN\n",
+						__FUNCTION__, __FILE__, __LINE__);
 				break;
 			}
 			sk_wait_data(sk, &timeo);
-			if (signal_pending(current)) {
+			if (signal_pending(current)) { // exists in distro-kernel
 				ret = sock_intr_errno(timeo);
+				if ( spliced == 0 )
+				{
+					printk( KERN_ERR "%s:%s:%d\n"
+								"signal pending recd during "
+								"tcp splice read .. returning %d.\n", 
+								__FILE__, __FUNCTION__, __LINE__,
+								ret	);
+				}
 				break;
 			}
 			continue;
@@ -657,14 +710,38 @@ ssize_t tcp_splice_read(struct socket *sock, loff_t *ppos,
 		spliced += ret;
 
 		if (!timeo)
+		{
+			printk(KERN_ERR "%s:%s:%d\n"
+					"breaking %d\n",
+					__FUNCTION__, __FILE__, __LINE__, 
+					ret);
 			break;
+		}
 		release_sock(sk);
 		lock_sock(sk);
 
 		if (sk->sk_err || sk->sk_state == TCP_CLOSE ||
-		    (sk->sk_shutdown & RCV_SHUTDOWN) ||
-		    signal_pending(current))
+		    (sk->sk_shutdown & RCV_SHUTDOWN))
+		{
+			printk(KERN_ERR "%s:%s:%d\n"
+					"breaking %d\n",
+					__FUNCTION__, __FILE__, __LINE__, 
+					ret);
 			break;
+		}
+
+		if (signal_pending(current))
+		{
+			if ( spliced == 0 )
+			{
+				printk( KERN_ERR "%s:%s:%d\n"
+							"signal pending recd at end of while during "
+							"tcp splice read .. returning %d.\n", 
+							__FILE__, __FUNCTION__, __LINE__, 
+							ret );
+			}
+			break;
+		}
 	}
 
 	release_sock(sk);
@@ -1334,6 +1411,7 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
 		sk_eat_skb(sk, skb, 0);
 		if (!desc->count)
 			break;
+        tp->copied_seq = seq;
 	}
 	tp->copied_seq = seq;
 

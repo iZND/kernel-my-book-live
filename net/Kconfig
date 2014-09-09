@@ -79,6 +79,15 @@ source "net/netlabel/Kconfig"
 
 endif # if INET
 
+config NET_MACSEC
+	bool "IP: MACSEC"
+	select CRYPTO
+	select CRYPTO_GCM
+	---help---
+	  Support for Macsec.
+
+	  If unsure, say Y.
+
 config NETWORK_SECMARK
 	bool "Security Marking"
 	help

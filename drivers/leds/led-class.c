@@ -30,17 +30,6 @@ static void led_update_brightness(struct led_classdev *led_cdev)
 		led_cdev->brightness = led_cdev->brightness_get(led_cdev);
 }
 
-static ssize_t led_brightness_show(struct device *dev, 
-		struct device_attribute *attr, char *buf)
-{
-	struct led_classdev *led_cdev = dev_get_drvdata(dev);
-
-	/* no lock needed for this */
-	led_update_brightness(led_cdev);
-
-	return sprintf(buf, "%u\n", led_cdev->brightness);
-}
-
 static ssize_t led_brightness_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -52,16 +41,27 @@ static ssize_t led_brightness_store(struct device *dev,
 
 	if (*after && isspace(*after))
 		count++;
-
 	if (count == size) {
 		ret = count;
 
 		if (state == LED_OFF)
 			led_trigger_remove(led_cdev);
+
 		led_set_brightness(led_cdev, state);
 	}
 
 	return ret;
+}
+
+static ssize_t led_brightness_show(struct device *dev, 
+		struct device_attribute *attr, char *buf)
+{
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+
+	/* no lock needed for this */
+	led_update_brightness(led_cdev);
+
+	return sprintf(buf, "%u\n", led_cdev->brightness);
 }
 
 static ssize_t led_max_brightness_show(struct device *dev,

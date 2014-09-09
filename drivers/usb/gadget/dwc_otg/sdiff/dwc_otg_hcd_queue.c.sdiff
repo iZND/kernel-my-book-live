@@ -1,0 +1,821 @@
+/* ==========================================================	/* ==========================================================
+ * $File: //dwh/usb_iip/dev/software/otg_ipmate/linux/drivers	 * $File: //dwh/usb_iip/dev/software/otg_ipmate/linux/drivers
+ * $Revision: #4 $						 * $Revision: #4 $
+ * $Date: 2005/09/15 $						 * $Date: 2005/09/15 $
+ * $Change: 537387 $						 * $Change: 537387 $
+ *								 *
+ * Synopsys HS OTG Linux Software Driver and documentation (h	 * Synopsys HS OTG Linux Software Driver and documentation (h
+ * "Software") is an Unsupported proprietary work of Synopsys	 * "Software") is an Unsupported proprietary work of Synopsys
+ * otherwise expressly agreed to in writing between Synopsys 	 * otherwise expressly agreed to in writing between Synopsys 
+ *								 *
+ * The Software IS NOT an item of Licensed Software or Licens	 * The Software IS NOT an item of Licensed Software or Licens
+ * any End User Software License Agreement or Agreement for L	 * any End User Software License Agreement or Agreement for L
+ * with Synopsys or any supplement thereto. You are permitted	 * with Synopsys or any supplement thereto. You are permitted
+ * redistribute this Software in source and binary forms, wit	 * redistribute this Software in source and binary forms, wit
+ * modification, provided that redistributions of source code	 * modification, provided that redistributions of source code
+ * notice. You may not view, use, disclose, copy or distribut	 * notice. You may not view, use, disclose, copy or distribut
+ * any information contained herein except pursuant to this l	 * any information contained herein except pursuant to this l
+ * Synopsys. If you do not agree with this notice, including 	 * Synopsys. If you do not agree with this notice, including 
+ * below, then you are not authorized to use the Software.	 * below, then you are not authorized to use the Software.
+ *								 *
+ * THIS SOFTWARE IS BEING DISTRIBUTED BY SYNOPSYS SOLELY ON A	 * THIS SOFTWARE IS BEING DISTRIBUTED BY SYNOPSYS SOLELY ON A
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 	 * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PA	 * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PA
+ * ARE HEREBY DISCLAIMED. IN NO EVENT SHALL SYNOPSYS BE LIABL	 * ARE HEREBY DISCLAIMED. IN NO EVENT SHALL SYNOPSYS BE LIABL
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL	 * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 	 * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTER	 * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT	 * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARI	 * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARI
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE PO	 * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE PO
+ * DAMAGE.							 * DAMAGE.
+ * ==========================================================	 * ==========================================================
+
+#ifndef CONFIG_DWC_DEVICE_ONLY					#ifndef CONFIG_DWC_DEVICE_ONLY
+
+/**								/**
+ * @file							 * @file
+ *								 *
+ * This file contains the functions to manage Queue Heads and	 * This file contains the functions to manage Queue Heads and
+ * Transfer Descriptors.					 * Transfer Descriptors.
+ */								 */
+#include <linux/kernel.h>					#include <linux/kernel.h>
+#include <linux/module.h>					#include <linux/module.h>
+#include <linux/moduleparam.h>					#include <linux/moduleparam.h>
+#include <linux/init.h>						#include <linux/init.h>
+#include <linux/device.h>					#include <linux/device.h>
+#include <linux/errno.h>					#include <linux/errno.h>
+#include <linux/list.h>						#include <linux/list.h>
+#include <linux/interrupt.h>					#include <linux/interrupt.h>
+#include <linux/string.h>					#include <linux/string.h>
+
+#include "dwc_otg_driver.h"					#include "dwc_otg_driver.h"
+#include "dwc_otg_hcd.h"					#include "dwc_otg_hcd.h"
+#include "dwc_otg_regs.h"					#include "dwc_otg_regs.h"
+
+/**								/**
+ * This function allocates and initializes a QH.		 * This function allocates and initializes a QH.
+ *								 *
+ * @param _hcd The HCD state structure for the DWC OTG contro	 * @param _hcd The HCD state structure for the DWC OTG contro
+ * @param[in] _urb Holds the information about the device/end	 * @param[in] _urb Holds the information about the device/end
+ * to initialize the QH.					 * to initialize the QH.
+ *								 *
+ * @return Returns pointer to the newly allocated QH, or NULL	 * @return Returns pointer to the newly allocated QH, or NULL
+dwc_otg_qh_t * dwc_otg_hcd_qh_create(dwc_otg_hcd_t * _hcd,	dwc_otg_qh_t * dwc_otg_hcd_qh_create(dwc_otg_hcd_t * _hcd,
+					 struct urb * _urb)						 struct urb * _urb)
+{								{
+	dwc_otg_qh_t * qh;						dwc_otg_qh_t * qh;
+
+	/* Allocate memory */						/* Allocate memory */
+	/** @todo add memflags argument */				/** @todo add memflags argument */
+	qh = dwc_otg_hcd_qh_alloc();					qh = dwc_otg_hcd_qh_alloc();
+	if (qh == NULL) {						if (qh == NULL) {
+		return NULL;							return NULL;
+	}								}
+	dwc_otg_hcd_qh_init(_hcd, qh, _urb);				dwc_otg_hcd_qh_init(_hcd, qh, _urb);
+	return qh;							return qh;
+}								}
+
+/** Free each QTD in the QH's QTD-list then free the QH.  QH 	/** Free each QTD in the QH's QTD-list then free the QH.  QH 
+ * removed from a list.  QTD list should already be empty if 	 * removed from a list.  QTD list should already be empty if 
+ * Dequeue.							 * Dequeue.
+ *								 *
+ * @param[in] _qh The QH to free.				 * @param[in] _qh The QH to free.
+ */								 */
+void dwc_otg_hcd_qh_free(dwc_otg_qh_t * _qh)			void dwc_otg_hcd_qh_free(dwc_otg_qh_t * _qh)
+{								{
+	dwc_otg_qtd_t * qtd;						dwc_otg_qtd_t * qtd;
+	struct list_head *pos;						struct list_head *pos;
+	unsigned long flags;						unsigned long flags;
+
+	/* Free each QTD in the QTD list */				/* Free each QTD in the QTD list */
+	local_irq_save(flags);						local_irq_save(flags);
+	for (pos = _qh->qtd_list.next; pos != &_qh->qtd_list;		for (pos = _qh->qtd_list.next; pos != &_qh->qtd_list;
+	      pos = _qh->qtd_list.next) {				      pos = _qh->qtd_list.next) {
+		list_del(pos);							list_del(pos);
+		qtd = dwc_list_to_qtd(pos);					qtd = dwc_list_to_qtd(pos);
+		dwc_otg_hcd_qtd_free(qtd);					dwc_otg_hcd_qtd_free(qtd);
+	}								}
+	local_irq_restore(flags);					local_irq_restore(flags);
+	kfree(_qh);							kfree(_qh);
+	return;								return;
+}								}
+
+/** Initializes a QH structure.					/** Initializes a QH structure.
+ *								 *
+ * @param[in] _hcd The HCD state structure for the DWC OTG co	 * @param[in] _hcd The HCD state structure for the DWC OTG co
+ * @param[in] _qh The QH to init.				 * @param[in] _qh The QH to init.
+ * @param[in] _urb Holds the information about the device/end	 * @param[in] _urb Holds the information about the device/end
+ * to initialize the QH. */					 * to initialize the QH. */
+#define SCHEDULE_SLOP 10					#define SCHEDULE_SLOP 10
+void dwc_otg_hcd_qh_init(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t *	void dwc_otg_hcd_qh_init(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t *
+			 struct urb *_urb)						 struct urb *_urb)
+{								{
+	memset(_qh, 0, sizeof(dwc_otg_qh_t));				memset(_qh, 0, sizeof(dwc_otg_qh_t));
+
+	/* Initialize QH */						/* Initialize QH */
+	switch (usb_pipetype(_urb->pipe)) {				switch (usb_pipetype(_urb->pipe)) {
+	case PIPE_CONTROL:						case PIPE_CONTROL:
+		_qh->ep_type = USB_ENDPOINT_XFER_CONTROL;			_qh->ep_type = USB_ENDPOINT_XFER_CONTROL;
+		break;								break;
+	case PIPE_BULK:							case PIPE_BULK:
+		_qh->ep_type = USB_ENDPOINT_XFER_BULK;				_qh->ep_type = USB_ENDPOINT_XFER_BULK;
+		break;								break;
+	case PIPE_ISOCHRONOUS:						case PIPE_ISOCHRONOUS:
+		_qh->ep_type = USB_ENDPOINT_XFER_ISOC;				_qh->ep_type = USB_ENDPOINT_XFER_ISOC;
+		break;								break;
+	case PIPE_INTERRUPT:						case PIPE_INTERRUPT:
+		_qh->ep_type = USB_ENDPOINT_XFER_INT;				_qh->ep_type = USB_ENDPOINT_XFER_INT;
+		break;								break;
+	}								}
+	_qh->ep_is_in = usb_pipein(_urb->pipe) ? 1 : 0;			_qh->ep_is_in = usb_pipein(_urb->pipe) ? 1 : 0;
+	_qh->data_toggle = DWC_OTG_HC_PID_DATA0;			_qh->data_toggle = DWC_OTG_HC_PID_DATA0;
+	_qh->maxp = usb_maxpacket(_urb->dev, _urb->pipe, !(us		_qh->maxp = usb_maxpacket(_urb->dev, _urb->pipe, !(us
+	INIT_LIST_HEAD(&_qh->qtd_list);					INIT_LIST_HEAD(&_qh->qtd_list);
+	INIT_LIST_HEAD(&_qh->qh_list_entry);				INIT_LIST_HEAD(&_qh->qh_list_entry);
+	_qh->channel = NULL;						_qh->channel = NULL;
+
+	/* FS/LS Enpoint on HS Hub					/* FS/LS Enpoint on HS Hub
+	 * NOT virtual root hub */					 * NOT virtual root hub */
+	_qh->do_split = 0;						_qh->do_split = 0;
+	_qh->speed = _urb->dev->speed;			      <
+							      <
+	if (((_urb->dev->speed == USB_SPEED_LOW) ||			if (((_urb->dev->speed == USB_SPEED_LOW) ||
+		(_urb->dev->speed == USB_SPEED_FULL)) &&			(_urb->dev->speed == USB_SPEED_FULL)) &&
+		(_urb->dev->tt) && (_urb->dev->tt->hub) && (_			(_urb->dev->tt) && (_urb->dev->tt->hub) && (_
+		DWC_DEBUGPL(DBG_HCD, "QH init: EP %d: TT foun			DWC_DEBUGPL(DBG_HCD, "QH init: EP %d: TT foun
+		     usb_pipeendpoint(_urb->pipe), _urb->dev-			     usb_pipeendpoint(_urb->pipe), _urb->dev-
+		_qh->do_split = 1;						_qh->do_split = 1;
+	}								}
+	if (_qh->ep_type == USB_ENDPOINT_XFER_INT			if (_qh->ep_type == USB_ENDPOINT_XFER_INT
+		|| _qh->ep_type == USB_ENDPOINT_XFER_ISOC) {			|| _qh->ep_type == USB_ENDPOINT_XFER_ISOC) {
+
+		/* Compute scheduling parameters once and sav			/* Compute scheduling parameters once and sav
+		hprt0_data_t hprt;						hprt0_data_t hprt;
+
+		/** @todo Account for split transfers in the 			/** @todo Account for split transfers in the 
+		int bytecount = dwc_hb_mult(_qh->maxp) * dwc_			int bytecount = dwc_hb_mult(_qh->maxp) * dwc_
+		_qh->usecs = NS_TO_US(usb_calc_bus_time(_urb-			_qh->usecs = NS_TO_US(usb_calc_bus_time(_urb-
+							usb_p								usb_p
+					(_qh->ep_type == USB_						(_qh->ep_type == USB_
+
+		/* Start in a slightly future (micro)frame. *			/* Start in a slightly future (micro)frame. *
+		_qh->sched_frame = dwc_frame_num_inc(_hcd->fr			_qh->sched_frame = dwc_frame_num_inc(_hcd->fr
+		_qh->interval = _urb->interval;					_qh->interval = _urb->interval;
+
+#if 0								#if 0
+		    /* Increase interrupt polling rate for de			    /* Increase interrupt polling rate for de
+		    if (_qh->ep_type == USB_ENDPOINT_XFER_INT			    if (_qh->ep_type == USB_ENDPOINT_XFER_INT
+			_qh->interval = 8;						_qh->interval = 8;
+		}								}
+
+#endif	/*  */							#endif	/*  */
+	    hprt.d32 = dwc_read_reg32(_hcd->core_if->host_if-		    hprt.d32 = dwc_read_reg32(_hcd->core_if->host_if-
+		if ((hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_S			if ((hprt.b.prtspd == DWC_HPRT0_PRTSPD_HIGH_S
+			((_urb->dev->speed == USB_SPEED_LOW) 				((_urb->dev->speed == USB_SPEED_LOW) 
+			(_urb->dev->speed == USB_SPEED_FULL))				(_urb->dev->speed == USB_SPEED_FULL))
+			_qh->interval *= 8;						_qh->interval *= 8;
+			_qh->sched_frame |= 0x7;					_qh->sched_frame |= 0x7;
+			_qh->start_split_frame = _qh->sched_f				_qh->start_split_frame = _qh->sched_f
+		}								}
+	}								}
+	DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD QH Initialized\n");		DWC_DEBUGPL(DBG_HCD, "DWC OTG HCD QH Initialized\n");
+	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - qh = %p\n", 		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - qh = %p\n", 
+	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Device Addre		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Device Addre
+		    _urb->dev->devnum);						    _urb->dev->devnum);
+	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Endpoint %d,		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Endpoint %d,
+		    usb_pipeendpoint(_urb->pipe),				    usb_pipeendpoint(_urb->pipe),
+		    usb_pipein(_urb->pipe) == USB_DIR_IN ? "I			    usb_pipein(_urb->pipe) == USB_DIR_IN ? "I
+	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Speed = %s\n		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Speed = %s\n
+			char *speed;							char *speed;
+			switch(_urb->dev->speed) {					switch(_urb->dev->speed) {
+			case USB_SPEED_LOW:						case USB_SPEED_LOW:
+				speed = "low"; break;						speed = "low"; break;
+			case USB_SPEED_FULL:						case USB_SPEED_FULL:
+				speed = "full"; break;						speed = "full"; break;
+			case USB_SPEED_HIGH:						case USB_SPEED_HIGH:
+				speed = "high"; break;						speed = "high"; break;
+			default:							default:
+				speed = "?";							speed = "?";
+				break;								break;
+			};								};
+			speed;								speed;
+	} )) ;								} )) ;
+	DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Type = %s\n"		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH  - Type = %s\n"
+			char *type;							char *type;
+			switch (_qh->ep_type) {						switch (_qh->ep_type) {
+			case USB_ENDPOINT_XFER_ISOC:					case USB_ENDPOINT_XFER_ISOC:
+				type = "isochronous"; break;					type = "isochronous"; break;
+			case USB_ENDPOINT_XFER_INT:					case USB_ENDPOINT_XFER_INT:
+				type = "interrupt"; break;					type = "interrupt"; break;
+			case USB_ENDPOINT_XFER_CONTROL:					case USB_ENDPOINT_XFER_CONTROL:
+				type = "control"; break;					type = "control"; break;
+			case USB_ENDPOINT_XFER_BULK:					case USB_ENDPOINT_XFER_BULK:
+				type = "bulk"; break;						type = "bulk"; break;
+			default:							default:
+				type = "?";break;						type = "?";break;
+			};								};
+			type;								type;
+	} )) ;								} )) ;
+
+#ifdef CONFIG_DWC_DEBUG						#ifdef CONFIG_DWC_DEBUG
+	if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {			if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {
+		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH - usecs			DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH - usecs
+			     _qh->usecs);						     _qh->usecs);
+		DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH - inter			DWC_DEBUGPL(DBG_HCDV, "DWC OTG HCD QH - inter
+			     _qh->interval);						     _qh->interval);
+	}								}
+
+#endif	/*  */							#endif	/*  */
+	return;								return;
+}								}
+
+/**								/**
+ * Microframe scheduler					      |	 * Checks that a channel is available for a periodic transfer
+ * track the total use in hcd->frame_usecs		      |	 *
+ * keep each qh use in qh->frame_usecs			      |	 * @return 0 if successful, negative error code otherise.
+ * when surrendering the qh then donate the time back	      <
+ */							      <
+const unsigned short max_uframe_usecs[]={ 100, 100, 100, 100, <
+							      <
+/*							      <
+ * called from dwc_otg_hcd.c:dwc_otg_hcd_init		      <
+ */								 */
+int init_hcd_usecs(dwc_otg_hcd_t *_hcd)			      |	static int periodic_channel_available(dwc_otg_hcd_t * _hcd)
+{							      <
+	int i;						      <
+	for (i=0; i<8; i++) {				      <
+		_hcd->frame_usecs[i] = max_uframe_usecs[i];   <
+	}						      <
+	return 0;					      <
+}							      <
+							      <
+static int find_single_uframe(dwc_otg_hcd_t * _hcd, dwc_otg_q <
+{								{
+	int i;						      |		/*
+	unsigned short utime;				      |		 * Currently assuming that there is a dedicated host 
+	int t_left;					      |		 * periodic transaction plus at least one host channe
+	int ret;					      |		 * non-periodic transactions.
+	int done;					      |		 */
+							      |		int status;
+	ret = -1;					      |		int num_channels;
+	utime = _qh->usecs;				      |		num_channels = _hcd->core_if->core_params->host_chann
+	t_left = utime;					      |		if ((_hcd->periodic_channels + _hcd->non_periodic_cha
+	i = 0;						      |		      num_channels) && (_hcd->periodic_channels < num
+	done = 0;					      |			status = 0;
+	while (done == 0) {				      |		} else {
+		/* At the start _hcd->frame_usecs[i] = max_uf |			DWC_NOTICE("%s: Total channels: %d, Periodic:
+		if (utime <= _hcd->frame_usecs[i]) {	      |			     __func__, num_channels, _hcd->periodic_c
+			_hcd->frame_usecs[i] -= utime;	      |			     _hcd->non_periodic_channels);
+			_qh->frame_usecs[i] += utime;	      |			status = -ENOSPC;
+			t_left -= utime;		      <
+			ret = i;			      <
+			done = 1;			      <
+			return ret;			      <
+		} else {				      <
+			i++;				      <
+			if (i == 8) {			      <
+				done = 1;		      <
+				ret = -1;		      <
+			}				      <
+		}					      <
+	}								}
+	return ret;					      |		return status;
+}								}
+
+/*							      |	/**
+ * use this for FS apps that can span multiple uframes	      |	 * Checks that there is sufficient bandwidth for the specifie
+							      >	 * periodic schedule. For simplicity, this calculation assume
+							      >	 * transfers in the periodic schedule may occur in the same (
+							      >	 *
+							      >	 * @param _hcd The HCD state structure for the DWC OTG contro
+							      >	 * @param _qh QH containing periodic bandwidth required.
+							      >	 *
+							      >	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+static int find_multi_uframe(dwc_otg_hcd_t * _hcd, dwc_otg_qh |	static int check_periodic_bandwidth(dwc_otg_hcd_t * _hcd, dwc
+{								{
+	int i;						      |		int status;
+	int j;						      |		uint16_t max_claimed_usecs;
+	unsigned short utime;				      |		status = 0;
+	int t_left;					      |		if (_hcd->core_if->core_params->speed == DWC_SPEED_PA
+	int ret;					      <
+	int done;					      <
+	unsigned short xtime;				      <
+							      <
+	ret = -1;					      <
+	utime = _qh->usecs;				      <
+	t_left = utime;					      <
+	i = 0;						      <
+	done = 0;					      <
+loop:							      <
+	while (done == 0) {				      <
+		if(_hcd->frame_usecs[i] <= 0) {		      <
+			i++;				      <
+			if (i == 8) {			      <
+				done = 1;		      <
+				ret = -1;		      <
+			}				      <
+			goto loop;			      <
+		}					      <
+							      <
+		/*								/*
+		 * we need n consequtive slots		      |			 * High speed mode.
+		 * so use j as a start slot j plus j+1 must b |			 * Max periodic usecs is 80% x 125 usec = 100
+		 */								 */
+		xtime= _hcd->frame_usecs[i];		      |			max_claimed_usecs = 100 - _qh->usecs;
+		for (j = i+1 ; j < 8 ; j++ ) {		      <
+			/*				      <
+			 * if we add this frame remaining tim <
+			 * be OK, if not we need to test j fo <
+			 */				      <
+			if ((xtime+_hcd->frame_usecs[j]) < ut <
+				if (_hcd->frame_usecs[j] < ma <
+					j = 8;		      <
+					ret = -1;	      <
+					continue;	      <
+				}			      <
+			}				      <
+			if (xtime >= utime) {		      <
+				ret = i;		      <
+				j = 8;	/* stop loop with a g <
+				continue;		      <
+			}				      <
+			/* add the frame time to x time */    <
+			xtime += _hcd->frame_usecs[j];	      <
+			/* we must have a fully available nex <
+			if ((xtime < utime)		      <
+			    && (_hcd->frame_usecs[j] == max_u <
+				ret = -1;		      <
+				j = 8;	/* stop loop with a b <
+				continue;		      <
+			}				      <
+		}					      <
+		if (ret >= 0) {				      <
+			t_left = utime;			      <
+			for (j = i; (t_left>0) && (j < 8); j+ <
+				t_left -= _hcd->frame_usecs[j <
+				if ( t_left <= 0 ) {	      <
+					_qh->frame_usecs[j] + <
+					_hcd->frame_usecs[j]= <
+					ret = i;	      <
+					done = 1;	      <
+				} else {		      <
+					_qh->frame_usecs[j] + <
+					_hcd->frame_usecs[j]  <
+				}			      <
+			}				      <
+		} else {				      <
+			i++;				      <
+			if (i == 8) {			      <
+				done = 1;		      <
+				ret = -1;		      <
+			}				      <
+		}					      <
+	}						      <
+	return ret;					      <
+}							      <
+							      <
+static int find_uframe(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t * _ <
+{							      <
+	int ret;					      <
+	ret = -1;					      <
+							      <
+	if (_qh->speed == USB_SPEED_HIGH) {		      <
+		/* if this is a hs transaction we need a full <
+		ret = find_single_uframe(_hcd, _qh);	      <
+	} else {							} else {
+		/* if this is a fs transaction we may need a  |			/*
+		ret = find_multi_uframe(_hcd, _qh);	      |			 * Full speed mode.
+							      >			 * Max periodic usecs is 90% x 1000 usec = 90
+							      >			 */
+							      >			max_claimed_usecs = 900 - _qh->usecs;
+	}								}
+	return ret;					      |		if (_hcd->periodic_usecs > max_claimed_usecs) {
+							      >	#undef USB_DWC_OTG_IGNORE_BANDWIDTH
+							      >	#ifndef USB_DWC_OTG_IGNORE_BANDWIDTH
+							      >			DWC_NOTICE("%s: already claimed usecs %d, req
+							      >				    __func__, _hcd->periodic_usecs, _
+							      >			status = -ENOSPC;
+							      >	#else
+							      >			status = 0;
+							      >	#endif
+							      >		}
+							      >		return status;
+}								}
+
+/**								/**
+ * Checks that the max transfer size allowed in a host channe	 * Checks that the max transfer size allowed in a host channe
+ * to handle the maximum data transfer in a single (micro)fra	 * to handle the maximum data transfer in a single (micro)fra
+ * transfer.							 * transfer.
+ *								 *
+ * @param _hcd The HCD state structure for the DWC OTG contro	 * @param _hcd The HCD state structure for the DWC OTG contro
+ * @param _qh QH for a periodic endpoint.			 * @param _qh QH for a periodic endpoint.
+ *								 *
+ * @return 0 if successful, negative error code otherwise.	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+static int check_max_xfer_size(dwc_otg_hcd_t * _hcd, dwc_otg_	static int check_max_xfer_size(dwc_otg_hcd_t * _hcd, dwc_otg_
+{								{
+	int status;							int status;
+	uint32_t max_xfer_size;						uint32_t max_xfer_size;
+	uint32_t max_channel_xfer_size;					uint32_t max_channel_xfer_size;
+	status = 0;							status = 0;
+	max_xfer_size = dwc_max_packet(_qh->maxp) * dwc_hb_mu		max_xfer_size = dwc_max_packet(_qh->maxp) * dwc_hb_mu
+	max_channel_xfer_size = _hcd->core_if->core_params->m		max_channel_xfer_size = _hcd->core_if->core_params->m
+	if (max_xfer_size > max_channel_xfer_size) {			if (max_xfer_size > max_channel_xfer_size) {
+		DWC_NOTICE("%s: Periodic xfer length %d > "			DWC_NOTICE("%s: Periodic xfer length %d > "
+			    "max xfer length for channel %d\n				    "max xfer length for channel %d\n
+			    max_xfer_size, max_channel_xfer_s				    max_xfer_size, max_channel_xfer_s
+		status = -ENOSPC;						status = -ENOSPC;
+	}								}
+	return status;							return status;
+}								}
+
+/**								/**
+ * Schedules an interrupt or isochronous transfer in the peri	 * Schedules an interrupt or isochronous transfer in the peri
+ *								 *
+ * @param _hcd The HCD state structure for the DWC OTG contro	 * @param _hcd The HCD state structure for the DWC OTG contro
+ * @param _qh QH for the periodic transfer. The QH should alr	 * @param _qh QH for the periodic transfer. The QH should alr
+ * scheduling information.					 * scheduling information.
+ *								 *
+ * @return 0 if successful, negative error code otherwise.	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+static int schedule_periodic(dwc_otg_hcd_t * _hcd, dwc_otg_qh	static int schedule_periodic(dwc_otg_hcd_t * _hcd, dwc_otg_qh
+{								{
+	int status = 0;							int status = 0;
+	int frame;					      |		status = periodic_channel_available(_hcd);
+	status = find_uframe(_hcd, _qh);		      |		if (status) {
+	frame = -1;					      |			DWC_NOTICE("%s: No host channel available for
+	if (status == 0) {				      |				    "transfer.\n", __func__);
+		frame = 7;				      |			return status;
+	} else {					      <
+		if (status > 0 )			      <
+			frame = status-1;		      <
+	}						      <
+	/* Set the new frame up */			      <
+	if (frame > -1) {				      <
+		_qh->sched_frame &= ~0x7;		      <
+		_qh->sched_frame |= (frame & 7);	      <
+	}								}
+							      |		status = check_periodic_bandwidth(_hcd, _qh);
+	if (status != -1 )				      <
+		status = 0;				      <
+							      <
+	if (status) {							if (status) {
+		DWC_NOTICE("%s: Insufficient periodic bandwid			DWC_NOTICE("%s: Insufficient periodic bandwid
+			    "periodic transfer.\n", __func__)				    "periodic transfer.\n", __func__)
+		return status;							return status;
+	}								}
+	status = check_max_xfer_size(_hcd, _qh);			status = check_max_xfer_size(_hcd, _qh);
+	if (status) {							if (status) {
+		DWC_NOTICE("%s: Channel max transfer size too			DWC_NOTICE("%s: Channel max transfer size too
+			    "for periodic transfer.\n", __fun				    "for periodic transfer.\n", __fun
+		return status;							return status;
+	}								}
+
+	/* Always start in the inactive schedule. */			/* Always start in the inactive schedule. */
+	list_add_tail(&_qh->qh_list_entry, &_hcd->periodic_sc		list_add_tail(&_qh->qh_list_entry, &_hcd->periodic_sc
+
+							      >		/* Reserve the periodic channel. */
+							      >		_hcd->periodic_channels++;
+							      >
+	/* Update claimed usecs per (micro)frame. */			/* Update claimed usecs per (micro)frame. */
+	_hcd->periodic_usecs += _qh->usecs;				_hcd->periodic_usecs += _qh->usecs;
+
+	/* Update average periodic bandwidth claimed and # pe		/* Update average periodic bandwidth claimed and # pe
+	hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwidth_alloc		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwidth_alloc
+						_qh->usecs / 							_qh->usecs / 
+
+	if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {			if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {
+		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid			hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid
+		DWC_DEBUGPL(DBG_HCD,						DWC_DEBUGPL(DBG_HCD,
+			     "Scheduled intr: qh %p, usecs %d				     "Scheduled intr: qh %p, usecs %d
+			     _qh, _qh->usecs, _qh->interval);				     _qh, _qh->usecs, _qh->interval);
+	} else {							} else {
+		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid			hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid
+		DWC_DEBUGPL(DBG_HCD,						DWC_DEBUGPL(DBG_HCD,
+			     "Scheduled isoc: qh %p, usecs %d				     "Scheduled isoc: qh %p, usecs %d
+			     _qh, _qh->usecs, _qh->interval);				     _qh, _qh->usecs, _qh->interval);
+	}								}
+	return status;							return status;
+}								}
+
+/**								/**
+ * This function adds a QH to either the non periodic or peri	 * This function adds a QH to either the non periodic or peri
+ * it is not already in the schedule. If the QH is already in	 * it is not already in the schedule. If the QH is already in
+ * action is taken.						 * action is taken.
+ *								 *
+ * @return 0 if successful, negative error code otherwise.	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t * _	int dwc_otg_hcd_qh_add(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t * _
+{								{
+	unsigned long flags;						unsigned long flags;
+	int status = 0;							int status = 0;
+	local_irq_save(flags);						local_irq_save(flags);
+	if (!list_empty(&_qh->qh_list_entry)) {				if (!list_empty(&_qh->qh_list_entry)) {
+		/* QH already in a schedule. */					/* QH already in a schedule. */
+		goto done;							goto done;
+	}								}
+
+	/* Add the new QH to the appropriate schedule */		/* Add the new QH to the appropriate schedule */
+	if (dwc_qh_is_non_per(_qh)) {					if (dwc_qh_is_non_per(_qh)) {
+		/* Always start in the inactive schedule. */			/* Always start in the inactive schedule. */
+		list_add_tail(&_qh->qh_list_entry,				list_add_tail(&_qh->qh_list_entry,
+				  &_hcd->non_periodic_sched_i					  &_hcd->non_periodic_sched_i
+	} else {							} else {
+		status = schedule_periodic(_hcd, _qh);				status = schedule_periodic(_hcd, _qh);
+	}								}
+
+done:local_irq_restore(flags);					done:local_irq_restore(flags);
+	return status;							return status;
+}								}
+/**								/**
+ * This function adds a QH to the non periodic deferred sched	 * This function adds a QH to the non periodic deferred sched
+ *								 *
+ * @return 0 if successful, negative error code otherwise.	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+int dwc_otg_hcd_qh_add_deferred(dwc_otg_hcd_t * _hcd, dwc_otg	int dwc_otg_hcd_qh_add_deferred(dwc_otg_hcd_t * _hcd, dwc_otg
+{								{
+	unsigned long flags;						unsigned long flags;
+	local_irq_save(flags);						local_irq_save(flags);
+	if (!list_empty(&_qh->qh_list_entry)) {				if (!list_empty(&_qh->qh_list_entry)) {
+		/* QH already in a schedule. */					/* QH already in a schedule. */
+		goto done;							goto done;
+	}								}
+
+	/* Add the new QH to the non periodic deferred schedu		/* Add the new QH to the non periodic deferred schedu
+	if (dwc_qh_is_non_per(_qh)) {					if (dwc_qh_is_non_per(_qh)) {
+		list_add_tail(&_qh->qh_list_entry,				list_add_tail(&_qh->qh_list_entry,
+			      &_hcd->non_periodic_sched_defer				      &_hcd->non_periodic_sched_defer
+	}								}
+done:								done:
+	local_irq_restore(flags);					local_irq_restore(flags);
+	return 0;							return 0;
+}								}
+
+/**								/**
+ * Removes an interrupt or isochronous transfer from the peri	 * Removes an interrupt or isochronous transfer from the peri
+ *								 *
+ * @param _hcd The HCD state structure for the DWC OTG contro	 * @param _hcd The HCD state structure for the DWC OTG contro
+ * @param _qh QH for the periodic transfer.			 * @param _qh QH for the periodic transfer.
+ */								 */
+static void deschedule_periodic(dwc_otg_hcd_t * _hcd, dwc_otg	static void deschedule_periodic(dwc_otg_hcd_t * _hcd, dwc_otg
+{								{
+	int i;						      <
+	list_del_init(&_qh->qh_list_entry);				list_del_init(&_qh->qh_list_entry);
+
+							      >		/* Release the periodic channel reservation. */
+							      >		_hcd->periodic_channels--;
+							      >
+	/* Update claimed usecs per (micro)frame. */			/* Update claimed usecs per (micro)frame. */
+	_hcd->periodic_usecs -= _qh->usecs;				_hcd->periodic_usecs -= _qh->usecs;
+
+	for (i = 0; i < 8; i++) {			      <
+		_hcd->frame_usecs[i] += _qh->frame_usecs[i];  <
+		_qh->frame_usecs[i] = 0;		      <
+	}						      <
+							      <
+	/* Update average periodic bandwidth claimed and # pe		/* Update average periodic bandwidth claimed and # pe
+	hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwidth_alloc		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwidth_alloc
+					_qh->usecs / _qh->int						_qh->usecs / _qh->int
+
+	if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {			if (_qh->ep_type == USB_ENDPOINT_XFER_INT) {
+		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid			hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid
+		DWC_DEBUGPL(DBG_HCD,						DWC_DEBUGPL(DBG_HCD,
+			     "Descheduled intr: qh %p, usecs 				     "Descheduled intr: qh %p, usecs 
+			     _qh, _qh->usecs, _qh->interval);				     _qh, _qh->usecs, _qh->interval);
+	} else {							} else {
+		hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid			hcd_to_bus(dwc_otg_hcd_to_hcd(_hcd))->bandwid
+		DWC_DEBUGPL(DBG_HCD,						DWC_DEBUGPL(DBG_HCD,
+			     "Descheduled isoc: qh %p, usecs 				     "Descheduled isoc: qh %p, usecs 
+			     _qh, _qh->usecs, _qh->interval);				     _qh, _qh->usecs, _qh->interval);
+	}								}
+}								}
+
+/**								/**
+ * Removes a QH from either the non-periodic or periodic sche	 * Removes a QH from either the non-periodic or periodic sche
+ * not freed.							 * not freed.
+ *								 *
+ * @param[in] _hcd The HCD state structure.			 * @param[in] _hcd The HCD state structure.
+ * @param[in] _qh QH to remove from schedule. */		 * @param[in] _qh QH to remove from schedule. */
+void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t	void dwc_otg_hcd_qh_remove(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t
+{								{
+	unsigned long flags;						unsigned long flags;
+	local_irq_save(flags);						local_irq_save(flags);
+	if (list_empty(&_qh->qh_list_entry)) {				if (list_empty(&_qh->qh_list_entry)) {
+		/* QH is not in a schedule. */					/* QH is not in a schedule. */
+		goto done;							goto done;
+	}								}
+	if (dwc_qh_is_non_per(_qh)) {					if (dwc_qh_is_non_per(_qh)) {
+		if (_hcd->non_periodic_qh_ptr == &_qh->qh_lis			if (_hcd->non_periodic_qh_ptr == &_qh->qh_lis
+			_hcd->non_periodic_qh_ptr = _hcd->non				_hcd->non_periodic_qh_ptr = _hcd->non
+		}								}
+		list_del_init(&_qh->qh_list_entry);				list_del_init(&_qh->qh_list_entry);
+	} else {							} else {
+		deschedule_periodic(_hcd, _qh);					deschedule_periodic(_hcd, _qh);
+	}								}
+
+done:local_irq_restore(flags);					done:local_irq_restore(flags);
+}								}
+
+/**								/**
+ * Defers a QH. For non-periodic QHs, removes the QH from the	 * Defers a QH. For non-periodic QHs, removes the QH from the
+ * non-periodic schedule. The QH is added to the deferred non	 * non-periodic schedule. The QH is added to the deferred non
+ * schedule if any QTDs are still attached to the QH.		 * schedule if any QTDs are still attached to the QH.
+ */								 */
+int dwc_otg_hcd_qh_deferr(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t 	int dwc_otg_hcd_qh_deferr(dwc_otg_hcd_t * _hcd, dwc_otg_qh_t 
+{								{
+        int deact = 1;						        int deact = 1;
+	unsigned long flags;						unsigned long flags;
+	local_irq_save(flags);						local_irq_save(flags);
+	if (dwc_qh_is_non_per(_qh)) {					if (dwc_qh_is_non_per(_qh)) {
+	        _qh->sched_frame =					        _qh->sched_frame =
+		  dwc_frame_num_inc(_hcd->frame_number,				  dwc_frame_num_inc(_hcd->frame_number,
+				    delay);							    delay);
+		_qh->channel = NULL;						_qh->channel = NULL;
+		_qh->qtd_in_process = NULL;					_qh->qtd_in_process = NULL;
+		deact = 0;							deact = 0;
+		dwc_otg_hcd_qh_remove(_hcd, _qh);				dwc_otg_hcd_qh_remove(_hcd, _qh);
+		if (!list_empty(&_qh->qtd_list)) {				if (!list_empty(&_qh->qtd_list)) {
+			/* Add back to deferred non-periodic 				/* Add back to deferred non-periodic 
+			dwc_otg_hcd_qh_add_deferred(_hcd, _qh				dwc_otg_hcd_qh_add_deferred(_hcd, _qh
+		}								}
+	}								}
+	local_irq_restore(flags);					local_irq_restore(flags);
+	return deact;							return deact;
+}								}
+/**								/**
+ * Deactivates a QH. For non-periodic QHs, removes the QH fro	 * Deactivates a QH. For non-periodic QHs, removes the QH fro
+ * non-periodic schedule. The QH is added to the inactive non	 * non-periodic schedule. The QH is added to the inactive non
+ * schedule if any QTDs are still attached to the QH.		 * schedule if any QTDs are still attached to the QH.
+ *								 *
+ * For periodic QHs, the QH is removed from the periodic queu	 * For periodic QHs, the QH is removed from the periodic queu
+ * there are any QTDs still attached to the QH, the QH is add	 * there are any QTDs still attached to the QH, the QH is add
+ * periodic inactive schedule or the periodic ready schedule 	 * periodic inactive schedule or the periodic ready schedule 
+ * scheduled frame is calculated. The QH is placed in the rea	 * scheduled frame is calculated. The QH is placed in the rea
+ * the scheduled frame has been reached already. Otherwise it	 * the scheduled frame has been reached already. Otherwise it
+ * inactive schedule. If there are no QTDs attached to the QH	 * inactive schedule. If there are no QTDs attached to the QH
+ * completely removed from the periodic schedule.		 * completely removed from the periodic schedule.
+ */								 */
+void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * _hcd, dwc_otg_	void dwc_otg_hcd_qh_deactivate(dwc_otg_hcd_t * _hcd, dwc_otg_
+			       int sched_next_periodic_split)				       int sched_next_periodic_split)
+{								{
+	unsigned long flags;						unsigned long flags;
+	local_irq_save(flags);						local_irq_save(flags);
+	if (dwc_qh_is_non_per(_qh)) {					if (dwc_qh_is_non_per(_qh)) {
+		dwc_otg_hcd_qh_remove(_hcd, _qh);				dwc_otg_hcd_qh_remove(_hcd, _qh);
+		if (!list_empty(&_qh->qtd_list)) {				if (!list_empty(&_qh->qtd_list)) {
+			/* Add back to inactive non-periodic 				/* Add back to inactive non-periodic 
+			dwc_otg_hcd_qh_add(_hcd, _qh);					dwc_otg_hcd_qh_add(_hcd, _qh);
+		}								}
+	} else {							} else {
+		uint16_t frame_number =						uint16_t frame_number =
+		    dwc_otg_hcd_get_frame_number(dwc_otg_hcd_			    dwc_otg_hcd_get_frame_number(dwc_otg_hcd_
+		if (_qh->do_split) {						if (_qh->do_split) {
+			/* Schedule the next continuing perio				/* Schedule the next continuing perio
+			if (sched_next_periodic_split) {				if (sched_next_periodic_split) {
+				_qh->sched_frame = frame_numb					_qh->sched_frame = frame_numb
+				if (dwc_frame_num_le(frame_nu					if (dwc_frame_num_le(frame_nu
+					dwc_frame_num_inc(_qh						dwc_frame_num_inc(_qh
+					/*								/*
+					 * Allow one frame to						 * Allow one frame to
+					 * split microframe b						 * split microframe b
+					 * complete split, bu						 * complete split, bu
+					 * doing the next sta						 * doing the next sta
+					 * same frame for an 						 * same frame for an 
+					 */								 */
+					if ((_qh->ep_type != 						if ((_qh->ep_type != 
+						|| (_qh->ep_i							|| (_qh->ep_i
+						_qh->sched_fr							_qh->sched_fr
+					}								}
+				}								}
+			} else {							} else {
+				_qh->sched_frame = dwc_frame_					_qh->sched_frame = dwc_frame_
+						      _qh->in							      _qh->in
+				if (dwc_frame_num_le(_qh->sch					if (dwc_frame_num_le(_qh->sch
+					_qh->sched_frame = fr						_qh->sched_frame = fr
+				}								}
+				_qh->sched_frame |= 0x7;					_qh->sched_frame |= 0x7;
+				_qh->start_split_frame = _qh-					_qh->start_split_frame = _qh-
+			}								}
+		} else {							} else {
+			_qh->sched_frame =						_qh->sched_frame =
+			    dwc_frame_num_inc(_qh->sched_fram				    dwc_frame_num_inc(_qh->sched_fram
+			if (dwc_frame_num_le(_qh->sched_frame				if (dwc_frame_num_le(_qh->sched_frame
+				_qh->sched_frame = frame_numb					_qh->sched_frame = frame_numb
+			}								}
+		}								}
+		if (list_empty(&_qh->qtd_list)) {				if (list_empty(&_qh->qtd_list)) {
+			dwc_otg_hcd_qh_remove(_hcd, _qh);				dwc_otg_hcd_qh_remove(_hcd, _qh);
+		} else {							} else {
+			/*								/*
+			 * Remove from periodic_sched_queued 				 * Remove from periodic_sched_queued 
+			 * appropriate queue.						 * appropriate queue.
+			 */								 */
+			if (dwc_frame_num_le(_qh->sched_frame |				if (_qh->sched_frame == frame_number)
+				list_move(&_qh->qh_list_entry					list_move(&_qh->qh_list_entry
+					   &_hcd->periodic_sc						   &_hcd->periodic_sc
+			} else {							} else {
+				list_move(&_qh->qh_list_entry					list_move(&_qh->qh_list_entry
+					   &_hcd->periodic_sc						   &_hcd->periodic_sc
+			}								}
+		}								}
+	}								}
+	local_irq_restore(flags);					local_irq_restore(flags);
+}								}
+
+/**								/**
+ * This function allocates and initializes a QTD.		 * This function allocates and initializes a QTD.
+ *								 *
+ * @param[in] _urb The URB to create a QTD from.  Each URB-QT	 * @param[in] _urb The URB to create a QTD from.  Each URB-QT
+ * pointing to each other so each pair should have a unique c	 * pointing to each other so each pair should have a unique c
+ *								 *
+ * @return Returns pointer to the newly allocated QTD, or NUL	 * @return Returns pointer to the newly allocated QTD, or NUL
+dwc_otg_qtd_t * dwc_otg_hcd_qtd_create(struct urb *_urb)	dwc_otg_qtd_t * dwc_otg_hcd_qtd_create(struct urb *_urb)
+{								{
+	dwc_otg_qtd_t * qtd;						dwc_otg_qtd_t * qtd;
+	qtd = dwc_otg_hcd_qtd_alloc();					qtd = dwc_otg_hcd_qtd_alloc();
+	if (qtd == NULL) {						if (qtd == NULL) {
+		return NULL;							return NULL;
+	}								}
+	dwc_otg_hcd_qtd_init(qtd, _urb);				dwc_otg_hcd_qtd_init(qtd, _urb);
+	return qtd;							return qtd;
+}								}
+
+/**								/**
+ * Initializes a QTD structure.					 * Initializes a QTD structure.
+ *								 *
+ * @param[in] _qtd The QTD to initialize.			 * @param[in] _qtd The QTD to initialize.
+ * @param[in] _urb The URB to use for initialization.  */	 * @param[in] _urb The URB to use for initialization.  */
+void dwc_otg_hcd_qtd_init(dwc_otg_qtd_t * _qtd, struct urb *_	void dwc_otg_hcd_qtd_init(dwc_otg_qtd_t * _qtd, struct urb *_
+{								{
+	memset(_qtd, 0, sizeof(dwc_otg_qtd_t));				memset(_qtd, 0, sizeof(dwc_otg_qtd_t));
+	_qtd->urb = _urb;						_qtd->urb = _urb;
+	if (usb_pipecontrol(_urb->pipe)) {				if (usb_pipecontrol(_urb->pipe)) {
+		/*								/*
+		 * The only time the QTD data toggle is used 			 * The only time the QTD data toggle is used 
+		 * phase of control transfers. This phase alw			 * phase of control transfers. This phase alw
+		 * DATA1.							 * DATA1.
+		 */								 */
+		_qtd->data_toggle = DWC_OTG_HC_PID_DATA1;			_qtd->data_toggle = DWC_OTG_HC_PID_DATA1;
+		_qtd->control_phase = DWC_OTG_CONTROL_SETUP;			_qtd->control_phase = DWC_OTG_CONTROL_SETUP;
+	}								}
+
+	/* start split */						/* start split */
+	_qtd->complete_split = 0;					_qtd->complete_split = 0;
+	_qtd->isoc_split_pos = DWC_HCSPLIT_XACTPOS_ALL;			_qtd->isoc_split_pos = DWC_HCSPLIT_XACTPOS_ALL;
+	_qtd->isoc_split_offset = 0;					_qtd->isoc_split_offset = 0;
+
+	/* Store the qtd ptr in the urb to reference what QTD		/* Store the qtd ptr in the urb to reference what QTD
+	_urb->hcpriv = _qtd;						_urb->hcpriv = _qtd;
+	return;								return;
+}								}
+
+/**								/**
+ * This function adds a QTD to the QTD-list of a QH.  It will	 * This function adds a QTD to the QTD-list of a QH.  It will
+ * QH to place the QTD into.  If it does not find a QH, then 	 * QH to place the QTD into.  If it does not find a QH, then 
+ * new QH. If the QH to which the QTD is added is not current	 * new QH. If the QH to which the QTD is added is not current
+ * is placed into the proper schedule based on its EP type.	 * is placed into the proper schedule based on its EP type.
+ *								 *
+ * @param[in] _qtd The QTD to add				 * @param[in] _qtd The QTD to add
+ * @param[in] _dwc_otg_hcd The DWC HCD structure		 * @param[in] _dwc_otg_hcd The DWC HCD structure
+ *								 *
+ * @return 0 if successful, negative error code otherwise.	 * @return 0 if successful, negative error code otherwise.
+ */								 */
+int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * _qtd,  dwc_otg_hcd_t 	int dwc_otg_hcd_qtd_add(dwc_otg_qtd_t * _qtd,  dwc_otg_hcd_t 
+{								{
+	struct usb_host_endpoint *ep;					struct usb_host_endpoint *ep;
+	dwc_otg_qh_t * qh;						dwc_otg_qh_t * qh;
+	unsigned long flags;						unsigned long flags;
+	int retval = 0;							int retval = 0;
+	struct urb *urb = _qtd->urb;					struct urb *urb = _qtd->urb;
+	local_irq_save(flags);						local_irq_save(flags);
+
+	/*								/*
+	 * Get the QH which holds the QTD-list to insert to. 		 * Get the QH which holds the QTD-list to insert to. 
+	 * doesn't exist.						 * doesn't exist.
+	 */								 */
+	ep = dwc_urb_to_endpoint(urb);					ep = dwc_urb_to_endpoint(urb);
+	qh = (dwc_otg_qh_t *) ep->hcpriv;				qh = (dwc_otg_qh_t *) ep->hcpriv;
+	if (qh == NULL) {						if (qh == NULL) {
+		qh = dwc_otg_hcd_qh_create(_dwc_otg_hcd, urb)			qh = dwc_otg_hcd_qh_create(_dwc_otg_hcd, urb)
+		if (qh == NULL) {						if (qh == NULL) {
+			retval = -1;							retval = -1;
+			goto done;							goto done;
+		}								}
+		ep->hcpriv = qh;						ep->hcpriv = qh;
+	}								}
+	_qtd->qtd_qh_ptr = qh;						_qtd->qtd_qh_ptr = qh;
+	retval = dwc_otg_hcd_qh_add(_dwc_otg_hcd, qh);			retval = dwc_otg_hcd_qh_add(_dwc_otg_hcd, qh);
+	if (retval == 0) {						if (retval == 0) {
+		list_add_tail(&_qtd->qtd_list_entry, &qh->qtd			list_add_tail(&_qtd->qtd_list_entry, &qh->qtd
+	}								}
+
+done:								done:
+	local_irq_restore(flags);					local_irq_restore(flags);
+
+	return retval;							return retval;
+}								}
+
+
+#endif	/* DWC_DEVICE_ONLY */					#endif	/* DWC_DEVICE_ONLY */

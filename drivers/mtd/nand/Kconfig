@@ -11,6 +11,13 @@ menuconfig MTD_NAND
 
 if MTD_NAND
 
+config MTD_NAND_NDFC
+	tristate "NDFC NanD Flash Controller"
+	depends on MTD_NAND && 4xx
+	select MTD_NAND_ECC_SMC
+	help
+		NDFC Nand Flash Controllers are integrated in IBM/AMCC's 4xx SoCs
+
 config MTD_NAND_VERIFY_WRITE
 	bool "Verify NAND page writes"
 	help
