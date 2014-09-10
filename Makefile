@@ -1,7 +1,7 @@
 VERSION = 3
 PATCHLEVEL = 12
 SUBLEVEL = 21
-EXTRAVERSION =
+EXTRAVERSION = -gentoo-r1
 NAME = One Giant Leap for Frogkind
 
 # *DOCUMENTATION*
